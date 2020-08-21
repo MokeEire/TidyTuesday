@@ -170,11 +170,11 @@ threats_by_continent %>%
   scale_fill_manual(name = NULL, values = colour_pal[-4:-5], guide = guide_legend(nrow = 1))+
   theme_plants(plots_pane=T, md=T, base_size = 16)+ # Use md=T to use ggtext's element_markdown, this allows us to use HTML too
   theme(axis.text.x = element_blank(),
-        legend.position = "top",
+        legend.position = "bottom",
         legend.text = element_text(size = 18, margin = margin(l = 5, r = 25)),
         axis.title.y = element_text(margin = margin(r=20)),
         strip.text = element_text(face = "bold"))+
-  facet_wrap(~threat_type, strip.position = "bottom", scales = "free_x")+
+  facet_wrap(~threat_type, strip.position = "top", scales = "free_x")+
   labs(title = "What Threatens Plant Biodiversity?",
        subtitle = "Threats to <strong><span style='color:#DA2A1C;'>IUCN Red List</span></strong> plant species last seen <strong><span style='color:#DA2A1C;'>{closest_state}</span></strong>",
        caption = str_c("<strong>Note</strong>: The data covers threats to plant species which are extinct or in danger of being extinct. This does not capture threats to all other plant life.<br><br><span style='color:", 
