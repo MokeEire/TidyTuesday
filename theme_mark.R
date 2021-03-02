@@ -34,13 +34,14 @@ source_caption = function(sources){
   }
   
   str_c(
-    "**Source", if(length(sources) > 1){"s"}, "**: ",
-    "<span style='line-height:1.25;'>", str_c(sources, collapse = "<br>"), "</span>",
+    "Source", if(length(sources) > 1){"s"}, ": ",
+    str_c(sources, collapse = "; "),
     "<br><br>",
-    "<span style='font-size:12px;color:", viz_colours[7], 
-    "'>Visualized by @MokeEire</span>"
+    "Visualized by @MokeEire"
   )
 }
+
+
 theme_mark = function(title_family = "Cabin Condensed",
                       subtitle_family = "Fira Sans Extra Condensed",
                         text_family = "Noto Sans",
