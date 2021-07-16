@@ -6,7 +6,7 @@ library(ggtext)
 library(gganimate)
 options(gganimate.dev_args = list(width = 900, height = 600)) # Change this line to the desired output size
 
-# Colour palette, made with 
+# Colour palette, made with: https://coolors.co/
 colour_pal = str_c("#", c("5b507a","d64933","4f000b","FFF8F0", "8D918B","90aa86","002a22","028090"))
 
 # Plotting function
