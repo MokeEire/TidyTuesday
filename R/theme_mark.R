@@ -1,3 +1,6 @@
+library(extrafont)
+library(tidyverse)
+
 my_col_pal = str_c("#", 
                    c("f0fafa", # background
                      "051414", # text
@@ -41,6 +44,17 @@ source_caption = function(sources){
   )
 }
 
+coord_no_clip = function(data, x, y, ...){
+  coord_cartesian(xlim = range(data[[x]], na.rm=T), 
+                  ylim = range(data[[y]], na.rm=T), ...)
+}
+
+fonts = list(
+  title = "Cabin Condensed",
+  subtitle = "Fira Sans Extra Condensed",
+  text = "Noto Sans"
+)
+
 
 theme_mark = function(title_family = "Cabin Condensed",
                       subtitle_family = "Fira Sans Extra Condensed",
@@ -63,20 +77,22 @@ theme_mark = function(title_family = "Cabin Condensed",
       text = element_text(family = text_family,
                           colour = text_colour),
       title = element_text(family = title_family,
-                           colour = text_colour, 
-                           margin = margin(b = 5)),
+                           colour = text_colour),
       
       plot.title = element_text(family = title_family,
                                 face = "bold",
                                 lineheight = 1.2,
-                                hjust = 0),
+                                hjust = 0, 
+                                margin = margin(b = 10)),
       plot.subtitle = element_text(lineheight = 1,
                                    family = subtitle_family,
-                                   hjust = 0),
+                                   hjust = 0, 
+                                   margin = margin(b = 10)),
       
 
       line = element_line(colour = line_colour),
       panel.grid.major = element_line(colour = grid_colour),
+      panel.grid.major.x = element_blank(),
       panel.grid.minor = element_blank(),
       
       # Plot titles
@@ -87,7 +103,7 @@ theme_mark = function(title_family = "Cabin Condensed",
       plot.caption.position = "plot", 
       plot.caption = element_text(hjust = 0,
                                   colour = line_colour, 
-                                  margin = margin(t = 25, b = 25, l = 0, r = 0)),
+                                  margin = margin(t = 15, b = 5, l = 0, r = 0)),
       
       
       # Background
@@ -99,20 +115,19 @@ theme_mark = function(title_family = "Cabin Condensed",
                                margin = margin(t = 25, b = 25, l = 25, r = 25)),
       
       axis.line = element_line(colour = line_colour),
-      axis.title = element_text(hjust = 1,
-                                face = "italic",
-                                margin = margin(t = 10, b = 10, l = 10, r = 10)),
       
+      axis.title = element_text(hjust = 1,
+                                family = subtitle_family,
+                                margin = margin(t = 10, b = 10, l = 10, r = 10)),
+      axis.title.x = element_text(margin = margin(t = 10, b = 5, l = 10, r = 10)),
 
       axis.title.y.left = element_text(hjust = 1,
-                                       face = "italic",
-                                       margin = margin(t = 15, r = 10, l = 10)),
+                                       margin = margin(t = 20, r = 10, l = 0)),
       
 
       
       axis.title.y.right = element_text(hjust = 0, 
-                                        face = "italic",
-                                        margin = margin(t = 15, r = 10, l = 10)),
+                                        margin = margin(t = 10, r = 0, l = 10)),
       
       
       # Facets
@@ -141,8 +156,8 @@ theme_mark = function(title_family = "Cabin Condensed",
         legend.title = element_text(size = base_size * 1.3),
         legend.text = element_text(size = base_size * 1.1)
         
-        
       )
+    
   } else if (plots_pane == FALSE & md == TRUE) {
     theme_obj +
       ggplot2::theme(
@@ -161,24 +176,24 @@ theme_mark = function(title_family = "Cabin Condensed",
         # Plot margin & caption
         plot.caption = ggtext::element_markdown(hjust = 0, 
                                                 colour = line_colour, 
-                                                margin = margin(t = 25, b = 25, l = 0, r = 0)),
+                                                margin = margin(t = 15, b = 5, l = 0, r = 0)),
 
         # Axes
         axis.text = ggtext::element_markdown(size = base_size * 1.25, 
                                              colour = text_colour,
                                              margin = margin(t = 25, b = 25, l = 25, r = 25)),
         axis.title = ggtext::element_markdown(size = base_size * 1.6,
+                                              family = subtitle_family,
                                               hjust = 1,
-                                              face = "italic",
                                               margin = margin(t = 10, b = 10, l = 10, r = 10)),
+        axis.title.x = ggtext::element_markdown(margin = margin(t = 10, b = 5, l = 10, r = 10)),
+        
         axis.title.y.left = ggtext::element_markdown(size = base_size * 1.6,
                                                      hjust = 1,
-                                                     face = "italic",
-                                                     margin = margin(t = 0, r = 10, l = 10)),
+                                                     margin = margin(t = 10, r = 10, l = 0)),
         axis.title.y.right = ggtext::element_markdown(size = base_size * 1.6,
                                                       hjust = 0,
-                                                      face = "italic",
-                                                      margin = margin(t = 10, r = 10, l = 10)),
+                                                      margin = margin(t = 10, r = 0, l = 10)),
 
         # Legend
         legend.title = ggtext::element_markdown(size = base_size * 1.3),
@@ -208,21 +223,14 @@ theme_mark = function(title_family = "Cabin Condensed",
 
         # Axes
         axis.title = ggtext::element_markdown(hjust = 1, 
-                                              colour = text_colour,
-                                              family = text_family,
-                                              face = "italic",
+                                              family = subtitle_family,
                                               margin = margin(t = 10, b = 10, l = 10, r = 10)),
-        axis.title.y.left = ggtext::element_markdown(colour = text_colour, 
-                                                     family = text_family,
-                                                     face = "italic",
-                                                     margin = margin(t = 10, r = 10, l = 10)),
+        axis.title.x = ggtext::element_markdown(margin = margin(t = 10, b = 5, l = 10, r = 10)),
+        
+        axis.title.y.left = ggtext::element_markdown(margin = margin(t = 10, r = 10, l = 0)),
         axis.title.y.right = ggtext::element_markdown(hjust = 0, 
-                                                      colour = text_colour, 
-                                                      family = text_family,
-                                                      face = "italic",
-                                                      margin = margin(t = 10, r = 10, l = 10)),
+                                                      margin = margin(t = 10, r = 0, l = 10)),
         axis.text = ggtext::element_markdown(colour = text_colour,
-                                             family = text_family,
                                              margin = margin(5,5,5,5)),
 
         # Legend

@@ -1,0 +1,353 @@
+---
+title: "TidyTuesday: Scooby Doo"
+output: html_notebook
+---
+
+Source theme function
+
+```{r setup}
+source("../R/theme_mark.R")
+
+library(lubridate)
+library(here)
+```
+Make a Scooby Doo palette for the characters (based on [this picture](https://camo.githubusercontent.com/87b411c4ff874f7af1469cc38512cd3dce2844a6a50b65f501dd540209f2d05a/68747470733a2f2f6e79706f73742e636f6d2f77702d636f6e74656e742f75706c6f6164732f73697465732f322f323031392f30392f74762d73636f6f62792d646f6f2d32622e6a70673f7175616c6974793d39302673747269703d616c6c26773d36313826683d3431302663726f703d31))
+
+```{r}
+scooby_pal = c("velma" = "#f0a200",
+               "shaggy" = "#b1c300",
+               "scooby" = "#ae7900",
+               "fred" = "#009ad3",
+               "daphnie" = "#6b4091")
+
+scooby_pal_ext = c(scooby_pal, "#ffdb6f", "#af7c91", "#a7e3fa", "#f29b78", "#83d18e")
+```
+
+Load the data
+
+```{r load-data}
+
+tuesdata <- tidytuesdayR::tt_load('2021-07-13')
+```
+
+
+```{r glimpse-df}
+scooby_df = tuesdata$scoobydoo
+
+glimpse(scooby_df)
+```
+
+Clean up a few variables that came in as the wrong data type:
+- If we're comparing ratings or engagement, we will want `imdb` and `engagement` to be numeric
+- If we are looking at any of the booleans (e.g. `non_suspect`, `arrested`) to be boolean rather than character
+- Convert `jeepers`, etc. to numerics too
+
+```{r}
+scooby_clean = scooby_df %>% 
+  mutate(across(c(imdb, engagement), as.numeric),
+         across(where(~is_character(.x) && any(str_detect(.x, "TRUE|FALSE"))), 
+                as.logical),
+         across(jeepers:rooby_rooby_roo, .fns = ~as.numeric(na_if(., "NULL"))))
+
+
+scooby_clean %>% 
+  glimpse()
+
+```
+
+
+How much Scooby Doo is there? 
+Let's see the number of episodes for each season of each show.
+
+```{r}
+scooby_clean %>% 
+  count(series_name, season)
+```
+
+A lot!
+
+Okay first thing I want to see is how the different series ratings differ.
+I'm going to remove movies, crossovers, and specials for consistency.
+
+```{r scooby-tv}
+scooby_tv = scooby_clean %>% 
+  filter(str_detect(season, "Crossover|Movie|Special", negate = T))
+```
+
+What does the rating variable look like?
+
+```{r}
+scooby_tv %>% 
+  count(imdb)
+```
+
+And if we convert this to numeric?
+
+```{r}
+scooby_clean %>% 
+  filter(!is.na(imdb)) %>% 
+  group_by(series_name, season) %>% 
+  mutate(episode_num = row_number(), .before = "title") %>% 
+  select(index, date_aired, series_name, season, episode_num, imdb)
+```
+
+
+Throw that into a plot really quick!
+
+```{r}
+scooby_tv %>% 
+  ggplot(., aes(x = index, y = imdb))+
+  geom_smooth(colour = my_col_pal[3], alpha = .8, se=T, na.rm=T, span = .25, fill = my_col_pal[4])+
+  geom_point(aes(colour = series_name), size = 1)+
+  scale_colour_discrete(guide = guide_none())+
+  scale_y_continuous(name = NULL, limits = c(0,10), expand = expansion())+
+  scale_x_continuous(name = "Episode #", expand = expansion(add = c(5, 15)))+
+  # scale_x_date(date_breaks = scales::label_date_short())+
+  theme_mark(md=T, plots_pane = T)
+```
+
+
+Label some of the series:
+- First season
+- Best Season
+- Lowest season
+
+```{r}
+series_ratings_labels = scooby_tv %>% 
+  group_by(series_name) %>% 
+  summarise(
+    year = min(year(date_aired)),
+    median_date = median(date_aired),
+    first_episode = min(index),
+    median_episode = median(index),
+    avg_rating = mean(imdb, na.rm=T),
+    rating_sd = sd(imdb, na.rm=T),
+    episodes = n(),
+    .groups = "drop"
+  ) %>% 
+  mutate(note = case_when(avg_rating == min(avg_rating) ~ "**Lowest avg. rating**<br>",
+                          avg_rating == max(avg_rating) ~ "**Highest avg. rating**<br>",
+                          first_episode == min(first_episode) ~ "**First season**<br>"),
+         label_x = if_else(median_episode == min(median_episode), median_episode+60, median_episode),
+         label_y = case_when(avg_rating == min(avg_rating) ~ min(avg_rating)-2,
+                          avg_rating == max(avg_rating) ~ max(avg_rating)+1.8,
+                          T ~ avg_rating+1.5),
+         series_label = str_c(coalesce(note, ""),
+                              series_name,
+                              "<br>(",year, ")<br>", 
+                              "<br>*Mean = ", round(avg_rating, 1), 
+                              "; SD = ", round(rating_sd, 1), "*"),
+         label_flag = (first_episode == min(first_episode) | 
+           avg_rating == min(avg_rating) | avg_rating == max(avg_rating)))
+
+series_ratings_labels
+  
+```
+
+Add these labels to our plot
+
+```{r}
+scooby_ratings = scooby_tv %>% 
+    ggplot(., aes(x = index, y = imdb))+
+    # Ratings trend line
+    geom_smooth(colour = my_col_pal[3], alpha = .8, se=T, na.rm=T, span = .2, fill = my_col_pal[4])+
+    # Non-highlighted series
+    geom_point(data = filter(scooby_tv, !(series_name %in% series_ratings_labels[series_ratings_labels$label_flag, "series_name", drop=T])), 
+               colour = my_col_pal[3], size = 3, alpha = .7)+
+    # Highlighted series
+    geom_point(data = filter(scooby_tv, series_name %in% series_ratings_labels[series_ratings_labels$label_flag, "series_name", drop=T]), 
+               aes(colour = series_name), 
+               size = 3, alpha = .9)+
+  # Textboxes
+    ggtext::geom_textbox(data=filter(series_ratings_labels, label_flag),
+                         aes(label = series_label, x = label_x, y = label_y),
+                         family = fonts$text, 
+                         text.colour = my_col_pal[2], box.colour = my_col_pal[3], size = 4, 
+                         minwidth = unit(7, "cm"), maxwidth = unit(9, "cm"), minheight = unit(2, "cm"))+
+  # Scales
+    scale_colour_manual(values = my_col_pal[5:7], guide = guide_none())+
+    scale_y_continuous(name = "IMDB Rating", breaks = c(0,2.5,5,7.5,10), limits = c(0, NA), expand = expansion(add = c(0,1)))+
+    scale_x_continuous(name = "Episode #", expand = expansion(add = c(20, 25)))
+
+scooby_ratings+
+    # scale_x_date(date_breaks = scales::label_date_short())+
+    labs(title = "Zoinks! That's a lot of mysteries gang", 
+         caption = source_caption("ScoobyPedia"))+
+    theme_mark(md=T, plots_pane = F, base_size = 16)
+
+
+# ggsave(filename = here("2021-07-13-ScoobyDoo", "ScoobyDooRatings.png"), 
+#        # plot = scooby_ratings,
+#        device = "png", 
+#        width = 16, height = 9, units = "cm", scale = 3.5, dpi = 320)
+```
+
+
+
+
+How about engagement?
+
+```{r}
+scooby_engagement = scooby_tv %>% 
+    ggplot(., aes(x = index, y = engagement))+
+    # Ratings trend line
+    geom_smooth(colour = my_col_pal[3], alpha = .8, se=T, na.rm=T, span = .2, fill = my_col_pal[4])+
+    # Non-highlighted series
+    geom_point(data = filter(scooby_tv, !(series_name %in% series_ratings_labels[series_ratings_labels$label_flag, "series_name", drop=T])), 
+               colour = my_col_pal[3], size = 3, alpha = .7)+
+    # Highlighted series
+    geom_point(data = filter(scooby_tv, series_name %in% series_ratings_labels[series_ratings_labels$label_flag, "series_name", drop=T]), 
+               aes(colour = series_name), 
+               size = 3, alpha = .9)+
+    scale_colour_manual(values = my_col_pal[5:7], guide = guide_none())+
+    scale_y_continuous(name = "No. of Ratings", limits = c(0, NA), expand = expansion(add = c(0, 50)))+
+    scale_x_continuous(name = "Episode #", expand = expansion(add = c(20, 25)))
+
+scooby_engagement +
+    labs(title = "But only two series have stood out amongst the crowd",
+         subtitle = '"Scooby Doo, Where Are You!" (1969) and "Scooby-Doo Mystery Incorporated" (2010) are the only series with more than 300 reviews for a single episode',
+         caption = source_caption("ScoobyPedia"))+
+    theme_mark(md=T, plots_pane = F, base_size = 14)
+
+# ggsave(filename = here("2021-07-13-ScoobyDoo", "ScoobyDooRatings-Engagement.png"), 
+#        # plot = scooby_ratings,
+#        device = "png", 
+#        width = 16, height = 9, units = "cm", scale = 3.5, dpi = 320)
+```
+
+```{r}
+library(patchwork)
+# Patch these together
+
+(scooby_ratings + scooby_engagement)* theme_mark(md=T, base_size = 14) + 
+  patchwork::plot_annotation(theme = theme_mark(md=T, base_size = 16), caption = source_caption("Scoobypedia"), 
+                             title = "Zoinks! That's a lot of mysteries gang",
+                             subtitle = "While Scooby Doo's TV series are consistently rated quite well, two series in particular attract a lot more attention than the others.")+
+  plot_layout(widths = c(6,4))
+
+# ggsave(filename = here("2021-07-13-ScoobyDoo", "ScoobyDooRatings-Combined.png"), 
+#        # plot = scooby_ratings,
+#        device = "png", 
+#        width = 16, height = 9, units = "cm", scale = 3.5, dpi = 320)
+```
+
+
+
+
+
+Who gets caught/does the capturing/unmasking the most?
+
+```{r}
+scooby_tv %>% 
+    select(matches("^(caught|captured|unmask)")) %>% 
+    pivot_longer(everything(), names_to = c("what", "who"), names_sep = "_", values_to = "caught") %>% 
+    count(who, what, wt = caught, name = "times") %>% 
+    ggplot(., aes(x = times, y = who, fill = who))+
+    geom_col()+
+  scale_fill_manual(values = set_names(c(scooby_pal_ext[c(1:5, 7)], "#9c9496"), c(names(scooby_pal), "not", "other")))+
+    facet_wrap(~what, nrow=1)+
+    theme_mark(plots_pane=T)
+```
+
+How do phrases change over time?
+
+```{r}
+scooby_tv %>% 
+  # group_by(series_name, season) %>%
+  group_by(year = year(date_aired)) %>% 
+  summarise(date = median(date_aired),
+            across(c(jeepers, jinkies, zoinks, groovy), sum, na.rm=T)) %>%
+  # select(date_aired, jeepers, jinkies, zoinks, groovy) %>%
+  pivot_longer(cols = jeepers:groovy, names_to = "phrase", values_to = "times") %>% 
+  ggplot(., aes(x = date, y = times, group = phrase))+
+  # ggplot(., aes(x = date_aired, y = times, group = phrase))+
+  geom_smooth(aes(colour = phrase), size = 1.25, fill = my_col_pal[4], span = .2)+
+  # geom_jitter(aes(colour = phrase), alpha = .3)+
+  scale_colour_manual(values = set_names(scooby_pal[c(1,2,4,5)], c("jinkies", "zoinks", "groovy", "jeepers")))+
+  scale_x_date(name = NULL, breaks = scales::breaks_pretty(n=8), labels = scales::label_date_short(format = c("%Y", "%b", "%d")), expand = expansion())+
+  scale_y_continuous(name = NULL, breaks = scales::breaks_pretty(), limits = c(0, NA), expand = expansion())+
+  theme_mark(plots_pane = T)
+```
+
+
+
+
+
+
+
+
+# Discarded
+
+Plot each episode's use of phrases
+
+```{r}
+scooby_tv %>% 
+  # group_by(series_name, season) %>%
+  # summarise(date = median(date_aired),
+  #           across(c(jeepers, jinkies, zoinks, groovy), sum, na.rm=T)) %>%
+  select(date_aired, jeepers, jinkies, zoinks, groovy) %>%
+  pivot_longer(cols = jeepers:groovy, names_to = "phrase", values_to = "times") %>% 
+  # ggplot(., aes(x = date, y = times, group = phrase))+
+  ggplot(., aes(x = date_aired, y = times, group = phrase))+
+  # geom_smooth(aes(colour = phrase), size = 1.25, fill = my_col_pal[4])+
+  geom_jitter(aes(colour = phrase), alpha = .7)+
+  scale_colour_manual(values = set_names(scooby_pal[c(1,2,4,5)], c("jinkies", "zoinks", "groovy", "jeepers")))+
+  scale_x_date(name = NULL, breaks = scales::breaks_pretty(n=8), labels = scales::label_date_short(format = c("%Y", "%b", "%d")), expand = expansion())+
+  scale_y_continuous(name = NULL, breaks = scales::breaks_pretty(), limits = c(0, NA), expand = expansion())+
+  theme_mark(plots_pane = T)
+```
+
+So how did Scooby Doo change from 1969 to 2010?
+
+```{r}
+scooby_changes = scooby_tv %>% 
+  filter(series_name %in% c("Scooby Doo, Where Are You!", "Scooby-Doo Mystery Incorporated")) %>% 
+  separate_rows(monster_name, monster_gender, monster_type, monster_subtype,monster_species, sep = ",") %>% 
+  group_by(series_name) %>% 
+  mutate(year = min(year(date_aired)),
+         series_label = factor(str_c(series_name, "\n(", year, ")"))) %>% 
+  ungroup() %>% 
+  count(series_name, monster_type)
+
+
+  
+
+scooby_tv %>% 
+  # Keep only the two most popular
+  filter(series_name %in% c("Scooby Doo, Where Are You!", "Scooby-Doo Mystery Incorporated")) %>% 
+  # Separate multiple monsters
+  separate_rows(monster_name, monster_gender, monster_type, monster_subtype,monster_species, sep = ",") %>% 
+  group_by(series_name) %>% 
+  mutate(year = min(year(date_aired)),
+         series_label = factor(str_c(series_name, "\n(", year, ")"))) %>% 
+  ungroup() %>% 
+  # Count the number of monster types from each series
+  count(series_name, monster_type, year) %>%
+  # Pivot to make a row for each monster type
+  pivot_wider(id_cols = c(monster_type), names_from = "year", names_prefix = "series_", values_from = "n") %>%
+  replace_na(list(series_2010 = 0, series_1969 = 0)) %>%
+  # Make a midpoint and difference to plot the arrows
+  mutate(midpoint = (series_2010+series_1969)/2,
+         diff = series_2010-series_1969,
+         monster_type = factor(monster_type)) %>%
+  arrange(-diff) %>% 
+  mutate(monster_type = fct_inorder(monster_type)) %>% 
+  ggplot(., aes(y = reorder(monster_type, diff)))+
+  # Found the idea here to get the arrow in the middle:
+  # https://community.rstudio.com/t/how-to-draw-an-arrow-in-the-middle-of-the-segment/7305
+  geom_segment(aes(x = midpoint, xend = series_2010, yend = monster_type))+
+  geom_segment(aes(x = series_1969, xend = midpoint, yend = monster_type),
+               arrow = arrow(type = "closed", length = unit(.25, "cm"), ends = "last"), arrow.fill=my_col_pal[3])+
+  geom_point(aes(x = series_1969), colour = scooby_pal[1])+
+  geom_point(aes(x = series_2010), colour = scooby_pal[4])+
+  scale_y_discrete()+
+  # Gave up because I couldn't immediately get a legend to work and concluded this may not even be that interesting
+  # scale_colour_manual(values = set_names(c("Scooby Doo, Where Are You!", "Scooby-Doo Mystery Incorporated"),
+  #                                        scooby_pal[c(1,4)]))
+  theme_mark(md=T)+
+  theme(legend.position = "bottom")
+  
+```
+
+
+
