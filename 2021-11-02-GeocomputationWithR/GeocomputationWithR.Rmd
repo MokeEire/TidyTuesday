@@ -1,0 +1,114 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+# Get the Data
+
+```{r}
+library(sf)
+library(raster)
+library(tidyverse)
+library(spData)
+# note that spDataLarge needs to be installed via:
+# install.packages("spDataLarge", 
+# repos = "https://nowosad.github.io/drat/", type = "source")
+library(spDataLarge) 
+
+# Visualization packages
+library(tmap)
+library(here)
+source(here("R", "theme_mark.R"))
+```
+
+# Geographic data in R
+
+**Vector data model** uses points, lines, and polygons.
+High precision, not necessarily high accuracy.
+Typically used in social sciences for its discrete borders.
+
+**Raster data model** divides the surface into cells of equal size. 
+Web mapping use raster data for background images.
+Aggregate spatial features to given *resolution* => they are consistent over space and can scale.
+Typically used in environmental science because of their abundance of remote sensing data.
+
+## Vector data
+
+Based on points defined on a coordinate reference system (CRS).
+These points can be longitude/latitude on a geographic CRS, or in the case of London, Easting/Northing which comes from the British National Grid (a system of geographic references used in Great Britain).
+
+# Making maps with R
+
+[Link to chapter](https://geocompr.robinlovelace.net/adv-map.html)
+
+```{r}
+map_nz = tm_shape(nz)+
+  tm_polygons()
+
+map_nz +
+  tm_shape(nz_elev) + 
+  tm_raster(alpha = 0.7)
+```
+
+Making NZ water
+
+```{r}
+nz_water = st_union(nz) %>% st_buffer(22200) %>% 
+  st_cast(to = "LINESTRING")
+
+nz_water
+```
+
+```{r}
+map_nz+
+  # Plot elevation
+  tm_shape(nz_elev)+
+  tm_raster(alpha = .7)+
+  # Plot water
+  tm_shape(nz_water)+
+  tm_lines()+
+  # Plot high points
+  tm_shape(nz_height)+
+  tm_dots()
+```
+
+`tmap` accepts aesthetic arguments directly
+
+```{r}
+tm_shape(nz)+
+  tm_fill(col = viz_colours[1], alpha = .6)+
+  tm_borders(col = my_col_pal[2])
+```
+`tmap` can use continuous data for colours via column reference in the form of a string.
+
+```{r}
+tm_shape(nz)+
+  tm_fill(col = "Population", alpha = .6, 
+          palette = viz_colours[c(3,1,6,5)])+
+  tm_borders(col = my_col_pal[2])
+```
+
+We can use `breaks` or `n` to set the size of bins
+
+```{r}
+tm_shape(nz)+
+  tm_fill(col = "Population", alpha = .6, 
+          palette = viz_colours[c(3,1,6,5,8)],
+          breaks = c(0, 100000, 250000, 500000, 1000000, 2000000))+
+  tm_borders(col = my_col_pal[2])
+```
+Or we can use algorithms to specify the break styles with the `style` argument
+
+```{r}
+map(c("pretty", "equal", "quantile", "jenks", "cont", "cat"),
+    function(selected_style){
+      tm_shape(nz)+
+        tm_fill(col = "Population", alpha = .6, 
+                style = selected_style,
+                title = selected_style)+
+        tm_borders(col = my_col_pal[2])
+      })
+```
+
+
+
