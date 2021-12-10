@@ -115,21 +115,41 @@ spider_plot = spiders %>%
   ggplot(., aes(x = year))+
   stat_count(fill = my_col_pal[2], alpha = .4, width = 1)+
   stat_count(data = filter(spiders, author %in% c("Simon", "Thorell")), 
-             aes(fill = author), position = position_stack(), colour = my_col_pal[3], alpha = .95, width = 1)+
+             aes(fill = author), position = position_stack(), colour = my_col_pal[2], width = 1)+
   scale_y_continuous(name = "Species identified", expand = expansion(), labels = scales::comma)+
-  scale_x_continuous(name = "Year of publication", breaks = scales::breaks_pretty(n = 10), expand = expansion(add = 5),
-                     limits = c(1830, 1930))+
+  scale_x_continuous(name = "Year of publication", breaks = scales::breaks_pretty(n = 10), expand = expansion(add = 5))+
   scale_fill_manual(values = c("Simon" = viz_colours[2], "Thorell"=viz_colours[1]),
                     name = NULL, guide = guide_legend(direction = "horizontal"))+
   labs(title = "Arachnid Aficionados",
-       subtitle = "Between 1830 and 1930, two researchers, Eugène Simon (1848-1924) and Tamerlan Thorell (1830-1901) were responsible for describing over 4,700\ndifferent species of spiders, which was nearly a third of all species identified in their lifetimes.",
+       subtitle = "Between 1830 and 1930, Eugène Simon (1848-1924) and Tamerlan Thorell (1830-1901) described over 4,700 species\nof spiders, which was nearly a third of all species identified in their lifetimes.",
        caption = source_caption("World Spider Database"))+
-  theme_mark(base_size = 16,
+  theme_mark(base_size = 20,
              plot_margin = margin(20,20,10,20))+
-  theme(legend.position = c(.09, .925))
+  theme(legend.position = c(.175, .865), 
+        legend.text = element_text(size = 36, margin = margin(r = 20)), 
+        legend.key.size = unit(.75, "cm"))
 
-ggsave(plot = spider_plot, filename = here("2021-12-07-Spiders", "spiders_truncated.png"), device = "png", type = "cairo", width = 7, height = 4, scale = 2.5)
+spider_plot
 ```
+
+```{r}
+# Zoom in on Simon/Thorell's lifetimes
+# Use coord_cartesian rather than add two new axes
+# spider_plot+
+#   scale_x_continuous(name = "Year of publication", breaks = scales::breaks_pretty(n = 10), expand = expansion(add = 5),
+#                      limits = c(1830, 1930))+
+#   scale_y_continuous(name = "Species identified", expand = expansion(mult = c(0, .1)), labels = scales::comma)
+
+spider_plot+
+  coord_cartesian(xlim = c(1830, 1930), ylim = c(NA, 520))
+  
+# Save truncated version (from last plot)
+ggsave(filename = here("2021-12-07-Spiders", "spiders_truncated.png"), device = "png", type = "cairo", width = 7, height = 4, scale = 2.5)
+# Save full version
+ggsave(plot = spider_plot, filename = here("2021-12-07-Spiders", "spiders.png"), device = "png", type = "cairo", width = 7, height = 4, scale = 2.5)
+
+```
+
 
 
 ```{r}
