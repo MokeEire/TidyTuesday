@@ -25,13 +25,13 @@ options(reactable.theme = reactableTheme(
   stripedColor = my_col_pal[4],
   highlightColor = my_col_pal[7],
   style = list(
-    fontFamily = "Noto Sans, sans-serif",
+    fontFamily = "Lato, sans-serif",
     fontSize = "0.75rem"
   )
 )
 )
 
-source_caption = function(sources){
+source_caption = function(sources, md=F){
   if(missing(sources)){
     stop("Need to provide a vector of sources to the sources argument")
   }
@@ -39,7 +39,7 @@ source_caption = function(sources){
   str_c(
     "Source", if(length(sources) > 1){"s"}, ": ",
     str_c(sources, collapse = "; "),
-    "<br><br>",
+    if_else(md, "<br><br>", "\n\n"),
     "Visualized by @MokeEire"
   )
 }
@@ -50,15 +50,15 @@ coord_no_clip = function(data, x, y, ...){
 }
 
 fonts = list(
-  title = "Cabin Condensed",
+  title = "Antic",
   subtitle = "Fira Sans Extra Condensed",
-  text = "Noto Sans"
+  body = "Lato"
 )
 
 
-theme_mark = function(title_family = "Cabin Condensed",
-                      subtitle_family = "Fira Sans Extra Condensed",
-                        text_family = "Noto Sans",
+theme_mark = function(title_family = fonts$title,
+                      subtitle_family = fonts$subtitle,
+                        text_family = fonts$body,
                         base_size = 13, 
                         plot_margin = margin(20,20,20,20),
                         plots_pane = FALSE,
