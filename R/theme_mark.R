@@ -103,7 +103,7 @@ theme_mark = function(title_family = fonts$title,
       plot.caption.position = "plot", 
       plot.caption = element_text(hjust = 0,
                                   colour = line_colour, 
-                                  margin = margin(t = 15, b = 5, l = 0, r = 0)),
+                                  margin = margin(t = 15, b = 0, l = 0, r = 0)),
       
       
       # Background
@@ -176,7 +176,7 @@ theme_mark = function(title_family = fonts$title,
         # Plot margin & caption
         plot.caption = ggtext::element_markdown(hjust = 0, 
                                                 colour = line_colour, 
-                                                margin = margin(t = 15, b = 5, l = 0, r = 0)),
+                                                margin = margin(t = 10, b = 5, l = 0, r = 0)),
 
         # Axes
         axis.text = ggtext::element_markdown(size = base_size * 1.25, 
@@ -218,7 +218,8 @@ theme_mark = function(title_family = fonts$title,
         
         # Plot margin and caption
         plot.caption = ggtext::element_markdown(hjust = 0, 
-                                                colour = line_colour),
+                                                colour = line_colour,
+                                                margin = margin(10,5,0,0)),
         
 
         # Axes
