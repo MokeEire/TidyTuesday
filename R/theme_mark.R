@@ -146,12 +146,12 @@ theme_mark = function(title_family = fonts$title,
       ggplot2::theme(
         text = element_text(size = base_size),
         # Plot titles
-        plot.title = element_text(size = base_size * 2),
-        plot.subtitle = element_text(size = base_size * 1.4),
+        plot.title = element_text(size = base_size * 2.2),
+        plot.subtitle = element_text(size = base_size * 1.4, margin = margin(b = 15)),
         plot.caption = element_text(size = base_size),
         # Axes
         axis.text = element_text(size = base_size * 1.25),
-        axis.title = element_text(size = base_size * 1.6),
+        axis.title = element_text(size = base_size * 1.6, margin = margin(b = 5)),
         # Legend
         legend.title = element_text(size = base_size * 1.3),
         legend.text = element_text(size = base_size * 1.1)
