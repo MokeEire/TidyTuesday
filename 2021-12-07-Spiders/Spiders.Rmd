@@ -1,0 +1,183 @@
+---
+title: "TidyTuesday: Spiders"
+output: html_notebook
+---
+
+```{r setup, include=F}
+# Source theme function
+source("../R/theme_mark.R")
+
+library(lubridate)
+library(here)
+library(gganimate)
+
+```
+
+
+Load the data
+
+```{r load-data}
+
+tuesdata <- tidytuesdayR::tt_load('2021-12-07')
+
+```
+
+
+```{r glimpse-spider-df}
+spiders = tuesdata$spiders
+
+glimpse(spiders)
+```
+
+```{r}
+summary(spiders)
+```
+
+```{r}
+spiders %>% 
+  count(family, sort = T)
+```
+
+```{r}
+spiders %>% 
+  count(family, genus) %>% 
+  arrange(family, genus)
+```
+
+```{r}
+spiders %>% 
+  add_count(family, genus, species, sort = T)
+```
+
+```{r}
+spiders %>% 
+  count(author, sort = T)
+```
+
+```{r}
+spiders %>% 
+  filter(author == "Simon") %>% 
+  count(author, year, sort = T)
+```
+
+```{r}
+spiders %>% 
+  filter(family == "Actinopodidae") %>% 
+  count(genus, species, sort = T)
+```
+
+Separate the distribution column into rows using commas
+
+```{r}
+spiders %>% 
+  count(distribution) %>% 
+  arrange(distribution)
+```
+
+```{r}
+spiders %>% 
+  separate(distribution, into = paste0("country", 1:17), sep = ",|\\sto\\s|and\\/or\\s")
+```
+
+
+
+How is the data distributed over time?
+
+```{r, fig.width = 10, fig.height = 7}
+
+spider_authors = spiders %>% 
+  separate_rows(author, sep = "(\\s\\&|,)\\s") %>% 
+  add_count(author,sort = T) %>% 
+  filter(dense_rank(-n) < 6)
+
+spiders %>% 
+  ggplot(., aes(x = year))+
+  # Base data
+  stat_count(fill = my_col_pal[2], alpha = .4, width = 1)+
+  # Aficionados
+  stat_count(data = filter(spiders, author %in% c("Simon", "Thorell")), 
+             aes(fill = author), position = position_stack(), colour = my_col_pal[3], alpha = .95, width = 1)+
+  scale_y_continuous(name = "Species identified", expand = expansion(), labels = scales::comma)+
+  scale_x_continuous(name = "Year of publication", breaks = scales::breaks_pretty(n = 10), expand = expansion(add = 5),
+                     limits = c(1830, 1930))+
+  scale_fill_manual(values = c("Simon" = viz_colours[2], "Thorell"=viz_colours[1]),
+                    name = NULL, guide = guide_legend(direction = "horizontal"))+
+  labs(title = "Arachnid Aficionados",
+       subtitle = "Between 1830 and 1930, two researchers, Eugène Simon (1848-1924) and Tamerlan Thorell (1830-1901) were responsible for describing over 4,700\ndifferent species of spiders, which was nearly a third of all spiders identified in their lifetimes.",
+       caption = source_caption("World Spider Database"))+
+  theme_mark(plots_pane = T, base_size = 16,
+             plot_margin = margin(20,20,10,20))+
+  theme(legend.position = c(.125, .925))
+```
+
+```{r}
+spider_plot = spiders %>% 
+  ggplot(., aes(x = year))+
+  stat_count(fill = my_col_pal[2], alpha = .4, width = 1)+
+  stat_count(data = filter(spiders, author %in% c("Simon", "Thorell")), 
+             aes(fill = author), position = position_stack(), colour = my_col_pal[3], alpha = .95, width = 1)+
+  scale_y_continuous(name = "Species identified", expand = expansion(), labels = scales::comma)+
+  scale_x_continuous(name = "Year of publication", breaks = scales::breaks_pretty(n = 10), expand = expansion(add = 5),
+                     limits = c(1830, 1930))+
+  scale_fill_manual(values = c("Simon" = viz_colours[2], "Thorell"=viz_colours[1]),
+                    name = NULL, guide = guide_legend(direction = "horizontal"))+
+  labs(title = "Arachnid Aficionados",
+       subtitle = "Between 1830 and 1930, two researchers, Eugène Simon (1848-1924) and Tamerlan Thorell (1830-1901) were responsible for describing over 4,700\ndifferent species of spiders, which was nearly a third of all species identified in their lifetimes.",
+       caption = source_caption("World Spider Database"))+
+  theme_mark(base_size = 16,
+             plot_margin = margin(20,20,10,20))+
+  theme(legend.position = c(.09, .925))
+
+ggsave(plot = spider_plot, filename = here("2021-12-07-Spiders", "spiders_truncated.png"), device = "png", type = "cairo", width = 7, height = 4, scale = 2.5)
+```
+
+
+```{r}
+spiders %>% 
+  # count(author) %>% 
+  filter(year > 1830, year <1930) %>%
+  mutate(total_species = n_distinct(species_lsid)) %>% 
+  # separate_rows(author, sep = "(\\s\\&|,)\\s") %>% 
+  count(author, total_species,sort = T) %>% mutate(pct = n/total_species)
+  ggplot(., aes(x = n))+
+  geom_histogram(binwidth = 10)+
+  scale_y_continuous(name = "# species identified", expand = expansion(add = .1), labels = scales::comma, breaks = scales::breaks_pretty())+
+  scale_x_continuous(name = NULL, breaks = scales::breaks_pretty(n = 10), expand = expansion(add = 5))+
+  theme_mark(plots_pane = T)
+```
+
+```{r}
+spiders %>% 
+  count(author, sort = T) %>% 
+  ggplot(., aes(x = n))+
+  geom_histogram(binwidth = 10)
+```
+
+```{r}
+spiders %>% 
+  mutate(distribution = sub("\\(.*)", "", distribution)) %>% 
+  mutate(distribution = str_remove(distribution, "Introduced to")) %>% 
+  separate_rows(distribution, sep = ", ") %>% 
+  mutate(distribution = str_remove(distribution, '"')) %>% 
+  count(distribution, sort = T)
+# standardize country names to country name in english
+spiders$continent <- countrycode(spiders$distribution, origin = "country.name", destination = "continent")
+spider_species_country <- spiders %>% 
+  group_by(distribution) %>% 
+  summarise(unique_species = n_distinct(speciesId)) %>% 
+  group_by(distribution) 
+```
+
+```{r}
+spiders %>%
+  mutate(country = if_else(str_detect(distribution, "Alps"),
+                           str_replace_all(distribution, c("Alps\\s\\(([A-z\\,\\s\\?]+)\\)" = "\\1",
+                                                           "\\?" = "")),
+                           str_replace_all(distribution, c("\\?|\\.\\B" = ""))),
+         country = str_remove_all(country, "\\s\\([A-z\\,\\.\\?\\s]+\\)")) %>%
+  separate_rows(country, sep = ",\\s|(Introduced)?\\sto\\s|Introduced\\:|and\\/or|\\sand") %>%
+  mutate(country = str_squish(country)) %>%
+  count(country, sort = T)
+
+```
+
