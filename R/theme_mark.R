@@ -147,11 +147,11 @@ theme_mark = function(title_family = fonts$title,
         text = element_text(size = base_size),
         # Plot titles
         plot.title = element_text(size = base_size * 2.2),
-        plot.subtitle = element_text(size = base_size * 1.4, margin = margin(b = 15)),
-        plot.caption = element_text(size = base_size),
+        plot.subtitle = element_text(size = base_size * 1.4, margin = margin(b = 25)),
+        plot.caption = element_text(size = base_size, margin = margin(t = 5)),
         # Axes
-        axis.text = element_text(size = base_size * 1.25),
-        axis.title = element_text(size = base_size * 1.6, margin = margin(b = 5)),
+        axis.text = element_text(size = base_size * 1.2, margin = margin(t = 30, b = 5)),
+        axis.title = element_text(size = base_size * 1.5, margin = margin(t = 15, b = 10)),
         # Legend
         legend.title = element_text(size = base_size * 1.3),
         legend.text = element_text(size = base_size * 1.1)
