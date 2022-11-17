@@ -146,7 +146,7 @@ series_ratings_labels
 
 Add these labels to our plot
 
-```{r}
+```{r, fig.height = 9, fig.width = 16}
 scooby_ratings = scooby_tv %>% 
     ggplot(., aes(x = index, y = imdb))+
     # Ratings trend line
@@ -161,7 +161,7 @@ scooby_ratings = scooby_tv %>%
   # Textboxes
     ggtext::geom_textbox(data=filter(series_ratings_labels, label_flag),
                          aes(label = series_label, x = label_x, y = label_y),
-                         family = fonts$text, 
+                         family = fonts$body, 
                          text.colour = my_col_pal[2], box.colour = my_col_pal[3], size = 4, 
                          minwidth = unit(7, "cm"), maxwidth = unit(9, "cm"), minheight = unit(2, "cm"))+
   # Scales
@@ -176,10 +176,21 @@ scooby_ratings+
     theme_mark(md=T, plots_pane = F, base_size = 16)
 
 
-# ggsave(filename = here("2021-07-13-ScoobyDoo", "ScoobyDooRatings.png"), 
-#        # plot = scooby_ratings,
-#        device = "png", 
-#        width = 16, height = 9, units = "cm", scale = 3.5, dpi = 320)
+ggsave(filename = here("2021-07-13-ScoobyDoo", "ScoobyDooRatings.png"),
+       # plot = scooby_ratings,
+       type = "cairo",
+       device = "png",
+       width = 16, height = 9, units = "cm", scale = 3.5, dpi = 320)
+```
+```{r, fig.height = 9, fig.width = 16}
+scooby_ratings+
+  theme_mark(md=T, plots_pane = F)
+
+ggsave(filename = here("2021-07-13-ScoobyDoo", "ScoobyDooRatings-notext.png"),
+       # plot = scooby_ratings,
+       type = "cairo",
+       device = "png",
+       width = 16, height = 9, units = "cm", scale = 3.5, dpi = 320)
 ```
 
 
@@ -187,7 +198,7 @@ scooby_ratings+
 
 How about engagement?
 
-```{r}
+```{r, fig.height = 9, fig.width = 16}
 scooby_engagement = scooby_tv %>% 
     ggplot(., aes(x = index, y = engagement))+
     # Ratings trend line
@@ -209,13 +220,14 @@ scooby_engagement +
          caption = source_caption("ScoobyPedia"))+
     theme_mark(md=T, plots_pane = F, base_size = 14)
 
-# ggsave(filename = here("2021-07-13-ScoobyDoo", "ScoobyDooRatings-Engagement.png"), 
-#        # plot = scooby_ratings,
-#        device = "png", 
-#        width = 16, height = 9, units = "cm", scale = 3.5, dpi = 320)
+ggsave(filename = here("2021-07-13-ScoobyDoo", "ScoobyDooRatings-Engagement.png"),
+       # plot = scooby_ratings,
+       type = "cairo", 
+       device = "png",
+       width = 16, height = 9, units = "cm", scale = 3.5, dpi = 320)
 ```
 
-```{r}
+```{r, fig.height = 9, fig.width = 16}
 library(patchwork)
 # Patch these together
 
@@ -225,10 +237,11 @@ library(patchwork)
                              subtitle = "While Scooby Doo's TV series are consistently rated quite well, two series in particular attract a lot more attention than the others.")+
   plot_layout(widths = c(6,4))
 
-# ggsave(filename = here("2021-07-13-ScoobyDoo", "ScoobyDooRatings-Combined.png"), 
-#        # plot = scooby_ratings,
-#        device = "png", 
-#        width = 16, height = 9, units = "cm", scale = 3.5, dpi = 320)
+ggsave(filename = here("2021-07-13-ScoobyDoo", "ScoobyDooRatings-Combined.png"),
+       # plot = scooby_ratings,
+       type = "cairo",
+       device = "png",
+       width = 16, height = 9, units = "cm", scale = 3.5, dpi = 320)
 ```
 
 
