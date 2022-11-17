@@ -4,12 +4,11 @@ output: html_notebook
 ---
 
 ```{r setup, include=F}
-# Source theme function
-source("../R/theme_mark.R")
-
+library(mokeR)
+library(tidyverse)
 library(lubridate)
 library(here)
-library(gganimate)
+# library(gganimate)
 
 ```
 
@@ -83,7 +82,7 @@ spiders %>%
 
 How is the data distributed over time?
 
-```{r, fig.width = 10, fig.height = 7}
+```{r, fig.width = 12, fig.height = 7}
 
 spider_authors = spiders %>% 
   separate_rows(author, sep = "(\\s\\&|,)\\s") %>% 
@@ -103,9 +102,9 @@ spiders %>%
   scale_fill_manual(values = c("Simon" = viz_colours[2], "Thorell"=viz_colours[1]),
                     name = NULL, guide = guide_legend(direction = "horizontal"))+
   labs(title = "Arachnid Aficionados",
-       subtitle = "Between 1830 and 1930, two researchers, Eugène Simon (1848-1924) and Tamerlan Thorell (1830-1901) were responsible for describing over 4,700\ndifferent species of spiders, which was nearly a third of all spiders identified in their lifetimes.",
+       subtitle = "Between 1830 and 1930, two researchers, Eugène Simon (1848-1924) and Tamerlan Thorell (1830-1901) were responsible for\ndescribing over 4,700 different species of spiders, which was nearly a third of all spiders identified in their lifetimes.",
        caption = source_caption("World Spider Database"))+
-  theme_mark(plots_pane = T, base_size = 16,
+  theme_moke(plots_pane = T, base_size = 14,
              plot_margin = margin(20,20,10,20))+
   theme(legend.position = c(.125, .925))
 ```
@@ -123,7 +122,7 @@ spider_plot = spiders %>%
   labs(title = "Arachnid Aficionados",
        subtitle = "Between 1830 and 1930, Eugène Simon (1848-1924) and Tamerlan Thorell (1830-1901) described over 4,700 species\nof spiders, which was nearly a third of all species identified in their lifetimes.",
        caption = source_caption("World Spider Database"))+
-  theme_mark(base_size = 20,
+  theme_moke(base_size = 20,
              plot_margin = margin(20,20,10,20))+
   theme(legend.position = c(.175, .865), 
         legend.text = element_text(size = 36, margin = margin(r = 20)), 
@@ -158,12 +157,12 @@ spiders %>%
   filter(year > 1830, year <1930) %>%
   mutate(total_species = n_distinct(species_lsid)) %>% 
   # separate_rows(author, sep = "(\\s\\&|,)\\s") %>% 
-  count(author, total_species,sort = T) %>% mutate(pct = n/total_species)
+  count(author, total_species,sort = T) %>% #mutate(pct = n/total_species)
   ggplot(., aes(x = n))+
   geom_histogram(binwidth = 10)+
   scale_y_continuous(name = "# species identified", expand = expansion(add = .1), labels = scales::comma, breaks = scales::breaks_pretty())+
   scale_x_continuous(name = NULL, breaks = scales::breaks_pretty(n = 10), expand = expansion(add = 5))+
-  theme_mark(plots_pane = T)
+  theme_moke(plots_pane = T)
 ```
 
 ```{r}
@@ -181,7 +180,7 @@ spiders %>%
   mutate(distribution = str_remove(distribution, '"')) %>% 
   count(distribution, sort = T)
 # standardize country names to country name in english
-spiders$continent <- countrycode(spiders$distribution, origin = "country.name", destination = "continent")
+# spiders$continent <- countrycode(spiders$distribution, origin = "country.name", destination = "continent")
 spider_species_country <- spiders %>% 
   group_by(distribution) %>% 
   summarise(unique_species = n_distinct(speciesId)) %>% 
