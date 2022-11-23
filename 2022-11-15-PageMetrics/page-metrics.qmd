@@ -1,0 +1,313 @@
+---
+title: "TidyTuesday: Page Metrics"
+author: "Mark"
+format: html
+editor: visual
+---
+
+# Background
+
+[Link to this week's folder on the Tidy Tuesday GitHub repo](https://github.com/rfordatascience/tidytuesday/tree/master/data/2022/2022-11-15)
+
+> **The weight of the web.** Researchers at the [HTTP Archive](https://httparchive.org/), a project of the [Internet Archive](https://archive.org/), "periodically crawl the top sites on the web and record detailed information about fetched resources, used web platform APIs and features, and execution traces of each page." They make the raw data [available via Google BigQuery](https://github.com/HTTPArchive/httparchive.org/blob/main/docs/gettingstarted_bigquery.md), and also publish [aggregate data](https://httparchive.org/reports) tracking metrics such as [loading speed](https://httparchive.org/reports/loading-speed) and [page weight](https://httparchive.org/reports/page-weight) (measured in kilobytes transferred). **As seen in**: "[Why web pages can have a size problem](https://blog.datawrapper.de/why-web-pages-can-have-a-size-problem/)" (Datawrapper).
+>
+> Source: [Data Is Plural](https://www.data-is-plural.com/archive/2022-11-02-edition/)
+
+Referenced in: [Why web pages can have a size problem](https://blog.datawrapper.de/why-web-pages-can-have-a-size-problem/)
+
+# Questions
+
+-   Which APIs do we rely on most?
+
+-   How much time do we spend waiting for pages to load?
+
+-   What sites are *heavier* than others? How many users do those sites have? What's the total volume of the data being transferred?
+
+# Get the data
+
+```{r}
+#| label: get-data
+#| message: false
+# Get the Data
+
+# Read in with tidytuesdayR package 
+# Install from CRAN via: install.packages("tidytuesdayR")
+# This loads the readme and all the datasets for the week of interest
+
+# Either ISO-8601 date or year/week works!
+
+# tuesdata <- tidytuesdayR::tt_load('2022-11-15')
+# tuesdata <- tidytuesdayR::tt_load(2022, week = 46)
+
+# image_alt <- tuesdata$image_alt
+
+# Or read in the data manually
+
+image_alt <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2022/2022-11-15/image_alt.csv')
+color_contrast <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2022/2022-11-15/color_contrast.csv')
+ally_scores <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2022/2022-11-15/ally_scores.csv')
+bytes_total <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2022/2022-11-15/bytes_total.csv')
+speed_index <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2022/2022-11-15/speed_index.csv')
+
+```
+
+# Look at the data
+
+```{r}
+# Load libraries
+library(tidyverse)
+library(lubridate)
+library(ggdist)
+library(distributional)
+library(patchwork)
+library(mokeR)
+```
+
+::: {.panel-tabset . .column-page} \## Image Alt
+
+```{r}
+glimpse(image_alt, width = 70)
+```
+
+```{r}
+transmute(image_alt, date = ymd(date)) %>% summary()
+```
+
+## Colour Contrast
+
+```{r}
+glimpse(color_contrast, width = 70)
+```
+
+```{r}
+transmute(color_contrast, date = ymd(date)) %>% summary()
+```
+
+## Ally Scores
+
+```{r}
+glimpse(ally_scores, width = 70)
+```
+
+## Bytes Total
+
+```{r}
+glimpse(bytes_total, width = 70)
+```
+
+## Speed Index
+
+```{r}
+glimpse(speed_index, width = 70)
+```
+
+:::
+
+It looks like we could join each of these together to get one big dataset of all the measures.
+
+```{r}
+(page_metrics_combined = image_alt %>% 
+  full_join(color_contrast, by = c("client", "date", "timestamp"), 
+            suffix = c("_alt", "_contrast")) %>% 
+  full_join(ally_scores, by = c("client", "date", "timestamp"), 
+            suffix = c("_alt", "_ally")) %>% 
+  full_join(bytes_total, by = c("client", "date", "timestamp"), 
+            suffix = c("_ally", "_bytes")) %>% 
+  full_join(speed_index, by = c("client", "date", "timestamp"), 
+            suffix = c("_bytes", "_speed")) %>% 
+    rename_with(~str_c(., "_speed"), c(p10:p90)) %>% 
+    select(client, date, timestamp, everything(), 
+           -starts_with("measure"))) %>% 
+  glimpse(70)
+```
+
+To clean this up, I'll convert date to a date type.
+
+```{r}
+(page_metrics_clean = page_metrics_combined %>% 
+  mutate(date = ymd(date))) %>% 
+  glimpse(70)
+```
+
+```{r}
+summary(page_metrics_clean)
+```
+
+There's not much non-percentile data here, but let's look at the percent of the web with image alt text and the percent of colour contrast over time
+
+```{r}
+select(page_metrics_clean, client:percent_contrast) %>% 
+  filter(if_any(starts_with("percent"), negate(is.na))) %>% 
+  pivot_longer(percent_alt:percent_contrast, 
+               names_to = "measure", names_pattern = "(?<=_)(.+)", 
+               values_to = "percent") %>% 
+  ggplot(aes(x = date, y = percent, colour = measure))+
+  geom_line()+
+  facet_wrap(~client)+
+  theme_moke()
+```
+
+What happened around GDPR?
+
+```{r}
+gdpr_date = ymd("2018-05-25")
+
+all_metrics = page_metrics_clean %>% 
+  select(client, date, percent_alt, percent_contrast, starts_with("p50")) %>% 
+  pivot_longer(cols = -c(client, date), names_to = "measure", values_to = "value") %>% 
+  filter(!is.na(value)) %>% 
+  mutate(type = if_else(measure %in% c("p50_bytes", "p50_speed"), "Page Load", "Accessibility"),
+         client = str_to_title(client))
+
+
+```
+
+```{r}
+all_metrics %>% 
+  filter(type == "Accessibility") %>% 
+  ggplot(aes(x = date, y = value, colour = client))+
+  geom_line()+
+  geom_vline(xintercept = gdpr_date)+
+  scale_y_continuous(expand = expansion(), breaks = scales::breaks_pretty())+
+  facet_wrap(~measure, scales = "free_y", shrink = F)+
+  theme_moke(plots_pane = T)
+```
+
+```{r}
+(pct_metrics_plot = all_metrics %>% 
+  filter(type == "Accessibility", str_detect(measure, "contrast", negate = T)) %>% 
+  mutate(measure_lab = case_when(measure == "percent_alt" ~ "% Alt Text", 
+                                 measure == "percent_contrast" ~ "% Colour Contrast",
+                                 measure == "p50_ally" ~ "Median Accessibility Score")) %>% 
+  ggplot(aes(x = date, y = value, colour = client))+
+  geom_line(linewidth = .9)+
+  geom_vline(xintercept = gdpr_date)+
+  scale_y_continuous(expand = expansion(mult = c(0, .05)), 
+                     labels = scales::percent_format(scale = 1), 
+                     limits = c(0, 90), breaks = scales::breaks_pretty()) +
+    scale_colour_manual(values = viz_colours[1:2])+
+  facet_wrap(~measure_lab, shrink = F, nrow = 1, scales = "free"))
+```
+
+```{r}
+(weight_plot = all_metrics %>% 
+  filter(measure == "p50_bytes") %>% 
+  mutate(measure = "Median Page Weight") %>%
+  ggplot(aes(x = date, y = value, colour = client))+
+  geom_line(linewidth = .9)+
+  geom_vline(xintercept = gdpr_date)+
+  scale_y_continuous(expand = expansion(mult = c(0, .11)), 
+                     labels = scales::label_bytes(scale = 1000, units = "kB"),
+                     limits = c(0, NA), breaks = scales::breaks_pretty()) +
+    scale_colour_manual(values = viz_colours[1:2]) +
+    annotate("text", label = str_wrap("GDPR became enforceable May 25th 2018", 24), 
+             x = gdpr_date + dweeks(12), y = 500, 
+             hjust = 0, family = "Noto Sans", size = 4)+
+    coord_cartesian(clip = "off")+
+  facet_wrap(~measure))
+```
+
+```{r}
+(speed_plot = all_metrics %>% 
+  filter(measure == "p50_speed") %>% 
+  mutate(measure = "Median Page Load Time") %>%
+  ggplot(aes(x = date, y = value, colour = client))+
+  geom_line(linewidth = .9)+
+  geom_vline(xintercept = gdpr_date)+
+  scale_y_continuous(expand = expansion(mult = c(0, .05)), 
+                     labels = scales::label_number(suffix = "s"),
+                     limits = c(0, NA), breaks = scales::breaks_pretty()) +
+    scale_colour_manual(values = viz_colours[1:2]) +
+  facet_wrap(~measure))
+```
+
+```{r}
+(weight_and_speed = (weight_plot | 
+                       speed_plot) *
+    labs(x = NULL, y = NULL))
+
+(( weight_plot | speed_plot) /
+    pct_metrics_plot+labs(subtitle = str_wrap("Some accessibility metrics fell before the law was implemented instead of after, but have since recovered too.", 96)))+
+  plot_annotation(title = "What happened to websites as GDPR went into effect?",
+                  subtitle = "Web page weight and load time dropped for 6 months following GDPR", 
+                  caption = "Source: HTTPArchive\n\nVisualized by @MokeEire",
+                  theme = theme_moke())+
+  plot_layout(guides = "collect")&
+  theme_moke(bg_colour = my_col_pal[1])+
+  theme(legend.title = element_blank(), 
+        legend.position = "top",
+        legend.margin = margin(),
+        panel.spacing = unit(1, "cm"), 
+        plot.subtitle = element_text(margin = margin())) &
+  labs(x = NULL, y = NULL)
+  
+ggsave(here::here("2022-11-15-PageMetrics", "gdpr_effects.png"), 
+       # type = "cairo", 
+       device = "png", 
+       dpi = 320, width = 32, height = 32, units = "cm")
+```
+
+# Working with distributions
+
+We have a lot of the data in the form of percentiles. Can we simulate distributions based on these?
+
+```{r}
+dist_df = tibble(
+  dist = c(dist_normal(1,0.25), dist_beta(3,3), dist_gamma(5,5)),
+  dist_name = format(dist)
+)
+
+dist_df %>%
+  ggplot(aes(y = dist_name, xdist = dist)) +
+  stat_dotsinterval() +
+  ggtitle(
+    "stat_dotsinterval()",
+    "aes(y = dist_name, xdist = dist)"
+  )
+```
+
+Let's look at speed first
+
+```{r}
+speed_pivoted = speed_index %>% 
+  mutate(date = ymd(date)) %>% 
+  pivot_longer(starts_with("p"), names_to = "percentile", values_to = "value")
+```
+
+```{r}
+speed_pivoted %>% 
+  arrange(client, date, desc(percentile)) %>% 
+  mutate(percentile = fct_inorder(factor(percentile, ordered = T))) %>% 
+  ggplot(aes(x = date, y = value, fill = percentile))+
+  geom_area(colour = my_col_pal[1])+
+  scale_y_continuous(expand = expansion())+
+  scale_x_date(expand = expansion())+
+  scale_fill_brewer(direction = 1)+
+  facet_wrap(~client)+
+  theme_moke(plots_pane = T)
+```
+
+What does the most recent speed test distribution look like?
+
+```{r}
+speed_pivoted %>% 
+  filter(date == max(date)) %>% 
+  mutate(percentile = fct_inorder(factor(percentile, ordered = T))) %>% 
+  ggplot(aes(y = percentile, x = value, group = date))+
+  geom_line()+
+  facet_wrap(~client)
+```
+
+What is the interquartile range of page speed and how has this changed over time?
+
+```{r}
+speed_index %>% 
+  mutate(piqr = p75-p25,
+         date = ymd(date)) %>% 
+  pivot_longer(starts_with("p"), names_to = "percentile", values_to = "value") %>% 
+  filter(percentile %in% c("p50", "piqr")) %>% 
+  # filter(client == "mobile") %>% 
+  ggplot(aes(x = date, y = value, colour = percentile))+
+  geom_line()+
+  facet_wrap(~client)
+```
