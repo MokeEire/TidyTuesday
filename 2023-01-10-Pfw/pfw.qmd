@@ -1,0 +1,105 @@
+---
+title: "TidyTuesday: Museums"
+author: "Mark"
+format: html
+editor: visual
+---
+
+# Background
+
+[Link to this week's folder on the Tidy Tuesday GitHub repo](https://github.com/rfordatascience/tidytuesday/tree/master/data/2022/2022-11-15)
+
+> **The weight of the web.** Researchers at the [HTTP Archive](https://httparchive.org/), a project of the [Internet Archive](https://archive.org/), "periodically crawl the top sites on the web and record detailed information about fetched resources, used web platform APIs and features, and execution traces of each page." They make the raw data [available via Google BigQuery](https://github.com/HTTPArchive/httparchive.org/blob/main/docs/gettingstarted_bigquery.md), and also publish [aggregate data](https://httparchive.org/reports) tracking metrics such as [loading speed](https://httparchive.org/reports/loading-speed) and [page weight](https://httparchive.org/reports/page-weight) (measured in kilobytes transferred). **As seen in**: "[Why web pages can have a size problem](https://blog.datawrapper.de/why-web-pages-can-have-a-size-problem/)" (Datawrapper).
+>
+> Source: [Data Is Plural](https://www.data-is-plural.com/archive/2022-11-02-edition/)
+
+Referenced in: [Why web pages can have a size problem](https://blog.datawrapper.de/why-web-pages-can-have-a-size-problem/)
+
+# Questions
+
+-   Which APIs do we rely on most?
+
+-   How much time do we spend waiting for pages to load?
+
+-   What sites are *heavier* than others? How many users do those sites have? What's the total volume of the data being transferred?
+
+# Get the data
+
+```{r}
+#| label: get-data
+#| message: false
+# Get the Data
+
+# Get the Data
+
+# Read in with tidytuesdayR package 
+# Install from CRAN via: install.packages("tidytuesdayR")
+# This loads the readme and all the datasets for the week of interest
+
+# Either ISO-8601 date or year/week works!
+
+tuesdata <- tidytuesdayR::tt_load('2023-01-10')
+# tuesdata <- tidytuesdayR::tt_load(2022, week = 47)
+
+pfw <- tuesdata$PFW_2021_public
+
+pfw_count <- tuesdata$PFW_count_site_data_public_2021
+
+# Or read in the data manually
+
+#museums <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2022/2022-11-22/museums.csv')
+
+
+```
+
+# Look at the data
+
+```{r}
+# Load libraries
+library(tidyverse)
+library(lubridate)
+library(ggdist)
+library(distributional)
+library(patchwork)
+library(mokeR)
+```
+
+::: {.panel-tabset . .column-page} \## Image Alt
+
+```{r}
+glimpse(pfw)
+```
+
+Can make a date variable from Month, Day, and Year
+
+```{r}
+pfw_clean = pfw %>% 
+  mutate(date = as_date(str_c(Year,Month,Day, sep ="-")), .after = "Year")
+```
+
+How many locations are there? 15287
+How many species? 361
+Are all the observations valid? Nearly all, 99+%
+How much effort is required? Usually an hour or less
+Are different species more effort?
+How important is snow depth? 90% of cases are known, of those it is often less than 1 foot/metre/unit of depth used?
+
+```{r}
+summary(pfw)
+library(skimr)
+skim(pfw)
+```
+
+Look at the data on a map
+
+```{r}
+# Load map libraries
+library(sf)
+library(tmap)
+```
+
+
+```{r}
+museums %>% 
+  count(Accreditation, sort = T)
+```
