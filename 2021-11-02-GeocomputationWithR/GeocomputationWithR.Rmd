@@ -6,13 +6,13 @@ output: html_notebook
 # Get the Data
 
 ```{r}
+library(extrafont)
 library(sf)
 library(raster)
 library(tidyverse)
 library(spData)
 # note that spDataLarge needs to be installed via:
-# install.packages("spDataLarge", 
-# repos = "https://nowosad.github.io/drat/", type = "source")
+# install.packages("spDataLarge", repos = "https://nowosad.github.io/drat/", type = "source")
 library(spDataLarge) 
 
 # Visualization packages
@@ -110,5 +110,158 @@ map(c("pretty", "equal", "quantile", "jenks", "cont", "cat"),
       })
 ```
 
+While we have been using `tm_fill()+tm_borders()`, it looks like `tm_polygons()` achieves both.
 
+```{r}
+tm_shape(nz) + 
+  tm_polygons("Population", palette = "YlOrBr")
+```
+
+We can add layout elements with `tm_layout()`
+
+```{r}
+map_nz+
+  tm_layout(title = "Title",
+            frame = F)
+```
+
+# Read in MID and MIDLOC Data
+
+## Country Codes
+
+List of country codes used in Correlates of War data.
+
+```{r}
+cc_file = here("data", "MID5", "COW country codes.csv")
+
+cc = read_csv(cc_file)
+
+glimpse(cc)
+```
+
+## Militarized Interstate Dispute (MID)
+
+>Version 5 of the Militarized Interstate Dispute (MID) data collection compiled by the Correlates of War Project provides information about conflicts in which one or more states threaten, display, or use force against one or more other states between 1816 and 2014. By definition, “Militarized interstate disputes are united historical cases of conflict in which the threat, display or use of military force short of war by one member state is explicitly directed towards the government, official representatives, official forces, property, or territory of another state. Disputes are composed of incidents that range in intensity from threats to use force to actual combat short of war” (Jones et al. 1996: 163).
+
+MIDA data, which contains data on MIDs from 1816-2014, at the dispute level, i.e. one record per militarized dispute.
+
+```{r}
+mida_file = here("data", "MID5", "MIDA 5.0.csv")
+
+mida = read_csv(mida_file)
+
+glimpse(mida)
+```
+
+MIDB data, which contains data on MIDs from 1816-2014, at the dispute level, i.e. one record per militarized dispute participant.
+
+```{r}
+midb_file = here("data", "MID5", "MIDB 5.0.csv")
+
+midb = read_csv(midb_file) %>% 
+  left_join(cc, by = c("stabb" = "StateAbb", "ccode" = "CCode"))
+
+glimpse(midb)
+```
+```{r}
+midb_aggressors = filter(midb, sidea == 1)
+
+glimpse(midb_aggressors)
+```
+
+
+
+
+## Militarized Interstate Dispute Location (MIDLOC)
+
+>The Militarized Interstate Dispute Location (MIDLOC) dataset details the precise geographic location of Militarized Interstate Disputes (MIDs) in the post-Napoleonic era (from 1816 - 2010), complementing the Correlates of War (COW) Project's considerable empirical data collection.
+
+```{r}
+midloca_file = here("data", "MIDLOC_2.1", "MIDLOCA_2.1.csv")
+
+midloca = read_csv(midloca_file)
+
+glimpse(midloca)
+```
+
+There seem to be a fair few disputes where the locations are unknown
+
+```{r}
+midloca %>% 
+  filter(if_any(c(midloc2_xlongitude,midloc2_ylatitude), is.na))
+```
+Because we're concerned with mapping these disputes, let's subset the data to disputes with known locations. 
+
+```{r}
+midloca_known = midloca %>% 
+  filter(!if_any(c(midloc2_xlongitude,midloc2_ylatitude), is.na))
+```
+
+Now let's have a look at the distribution of disputes over time.
+
+```{r}
+ggplot(midloca_known)+
+  geom_histogram(aes(x = year), colour = my_col_pal[1])+
+  scale_y_continuous(name = "MIDs", expand = expansion(add = .5))+
+  theme_mark(plots_pane=T)
+```
+
+
+Group MIDs by time period: 1800-1850, 1850-1900, 1900-1950, 1950-2000, 2000-2010.
+
+```{r}
+midloca_known_grouped = midloca_known %>% 
+  mutate(time_period = case_when(between(year, 1800, 1850) ~ "1800-1850",
+                                 between(year, 1851, 1900) ~ "1851-1900",
+                                 between(year, 1901, 1950) ~ "1901-1950",
+                                 between(year, 1951, 2000) ~ "1951-2000",
+                                 T ~ "2001-2010"))
+
+midloca_known_grouped %>% 
+  count(time_period)
+```
+
+
+```{r}
+library(sp)
+world_sp = as(world, Class = "Spatial") # from an sf object to sp
+# sp functions ...
+world_sf = st_as_sf(world_sp)           # from sp to sf
+```
+
+
+```{r}
+midloca_sf = st_as_sf(midloca_known_grouped, 
+             coords = c("midloc2_xlongitude", "midloc2_ylatitude"),
+             crs = 4326)
+
+glimpse(midloca_sf)
+```
+
+```{r}
+tm_shape(world_sf)+
+  tm_borders(col = my_col_pal[2])+
+  tm_shape(midloca_sf)+
+  tm_dots()+
+  # tm_facets(along = "year", free.coords = F)+
+  tm_layout(frame = F, 
+            bg.color = my_col_pal[1], 
+            fontfamily = fonts$body, 
+            title.fontfamily = fonts$title, 
+            main.title = "Militarized Interstate Disputes (1816-2010)")
+```
+
+```{r}
+library(gganimate)
+
+ggplot(midloca_sf)+
+  geom_sf(data = world, 
+          colour = my_col_pal[2], fill = my_col_pal[1])+
+  geom_sf(colour = viz_colours[2])+
+  labs(title = "Military Interstate Disputes {year}")+
+  theme_mark(plots_pane = T)+
+  theme(panel.grid.major = element_blank())+
+  transition_manual(year)
+  
+```
 
