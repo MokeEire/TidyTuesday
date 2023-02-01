@@ -1,0 +1,416 @@
+---
+title: "TidyTuesday: Pet Cats UK"
+format: html
+editor: visual
+---
+
+# The Data
+
+## Load it
+
+[This week's TidyTuesday](https://github.com/rfordatascience/tidytuesday/blob/master/data/2023/2023-01-31/readme.md) is about Cats!
+
+```{r}
+# Get the Data
+
+# Read in with tidytuesdayR package 
+# Install from CRAN via: install.packages("tidytuesdayR")
+# This loads the readme and all the datasets for the week of interest
+
+# Either ISO-8601 date or year/week works!
+
+tuesdata <- tidytuesdayR::tt_load('2023-01-31')
+tuesdata <- tidytuesdayR::tt_load(2023, week = 5)
+
+cats_uk <- tuesdata$cats_uk
+cats_uk_reference <- tuesdata$cats_uk_reference
+
+# Or read in the data manually
+
+cats_uk <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2023/2023-01-31/cats_uk.csv')
+cats_uk_reference <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2023/2023-01-31/cats_uk_reference.csv')
+```
+
+## Look at it
+
+```{r}
+skimr::skim(cats_uk)
+```
+
+What kind of data does it have?
+
+Tag IDs identify individual cats at various sensor measurements given by `event_id`. 
+The time, location, speed, and height of the cat at each event is measured.
+
+Okay I want to see a map of roaming cats. Can I do that?
+
+Before I do that, let's also look at the other dataset
+
+```{r}
+skimr::skim(cats_uk_reference)
+```
+
+What kind of data does this set have?
+
+Tag IDs identify individual cats for which we know:
+
+- animal demographics: sex, age, neutered-ness
+- what type of food they eat
+- how many prey they catch each month
+- how often they are indoors
+- how many cats are in their house
+- how long the tag was on the cat
+
+## Understand the context
+
+
+
+# Exploration
+
+Load the libraries we want to use
+
+```{r}
+library(tidyverse)
+library(sf)
+library(raster)
+library(tmap)
+library(mokeR)
+library(spData)
+library(lubridate)
+```
+Can we identify factors that influence prey caught per month?
+First, what is the distribution of prey caught per month?
+
+```{r}
+cats_uk_reference |> 
+  count(prey_p_month)
+```
+
+Hmm...the values are very clumpy but let's give it a go anyway
+
+```{r}
+ggplot(cats_uk_reference, aes(x = age_years, y = prey_p_month))+
+  geom_jitter(width = 0)+
+  theme_moke(plots_pane = T)
+```
+What is the age distribution in this study?
+
+```{r}
+cats_uk_reference |> 
+  count(age_years)
+```
+
+And how does this look, by sex?
+
+```{r}
+ggplot(cats_uk_reference, aes(x = age_years))+
+  geom_histogram(aes(fill = animal_sex), binwidth = 1, colour = my_col_pal[1])+
+  scale_x_continuous(breaks = scales::breaks_pretty(n = 10), expand = expansion(mult=.025))+
+  scale_y_continuous(expand = expansion())+
+  scale_fill_manual(values = viz_colours[4:5])+
+  theme_moke(plots_pane = T)
+```
+What are the different sizes of cat households?
+
+```{r}
+ggplot(cats_uk_reference, aes(x = n_cats))+
+  geom_histogram(binwidth = 1, colour = my_col_pal[1])+
+  scale_x_continuous(expand = expansion(mult=.025))+
+  scale_y_continuous(expand = expansion())+
+  theme_moke(plots_pane = T)
+```
+
+Do prey vary by household size?
+
+```{r}
+(hh_prey_count = cats_uk_reference |> 
+  count(n_cats = factor(n_cats), animal_sex, prey_p_month))
+
+hh_prey_count|> 
+  ggplot(aes(y = n_cats, x = prey_p_month, colour = animal_sex))+
+  geom_jitter(aes(size = n), height = 0.3, width = 0)+
+  scale_x_continuous(breaks = scales::breaks_pretty(n = 6), expand = expansion(mult=.025))+
+  scale_y_discrete()+
+  theme_moke(plots_pane = T)
+```
+
+How about the average ground speed of each cat?
+
+```{r}
+cats_uk |> 
+  group_by(tag_id) |> 
+  summarise(events = n_distinct(event_id),
+            avg_ground_speed_ms = mean(ground_speed))
+```
+
+```{r}
+cats_uk_reference |> 
+  sample_n(10) |> 
+  arrange(age_years) |> 
+  mutate(animal = fct_inorder(animal_id), .after = "animal_id") |> 
+  left_join(cats_uk, by = "tag_id") |> 
+  ggplot(aes(x = ground_speed, y = animal, group = animal))+
+  geom_boxplot()+
+  scale_x_continuous(labels = scales::comma)+
+  labs(x = "Ground Speed (m/s)")+
+  theme_moke(plots_pane = T)
+```
+
+How many events are measured per day for cats?
+
+```{r}
+cats_events_per_day = cats_uk |> 
+  mutate(date = date(timestamp)) |> 
+  group_by(tag_id, date) |> 
+  summarise(daily_events = n_distinct(event_id),
+            .groups = "drop")
+
+ggplot(cats_events_per_day)+
+  geom_histogram(aes(x = daily_events), colour = my_col_pal[1])+
+  scale_x_continuous(expand = expansion(mult = .025), breaks = scales::breaks_pretty(n=10))+
+  scale_y_continuous(expand = expansion(mult = c(0, .05)))+
+  theme_moke(plots_pane=T)
+```
+What was the distribution of individual cats' average events per day?
+
+```{r}
+cats_events_per_day |> 
+  group_by(tag_id) |> 
+  summarise(
+    days = n_distinct(date),
+    min = min(daily_events),
+    mean = mean(daily_events),
+    median = median(daily_events),
+    max = max(daily_events)
+  ) |> 
+  ggplot(aes(x = mean))+
+  geom_histogram(colour = my_col_pal[1])+
+  scale_x_continuous(expand = expansion(mult = .025), breaks = scales::breaks_pretty(n=10))+
+  scale_y_continuous(expand = expansion(mult = c(0, .05)))+
+  theme_moke(plots_pane=T)
+```
+
+
+What is the average time between events for cats?
+
+```{r}
+cats_uk |> 
+  arrange(tag_id, timestamp) |> 
+  group_by(tag_id) |> 
+  mutate(time_between_events = timestamp - lag(timestamp), .after = "timestamp") |> 
+  group_by(tag_id) |> 
+  summarise(
+    events = n_distinct(event_id),
+    min = min(time_between_events, na.rm=T),
+    mean = mean(time_between_events, na.rm=T),
+    median = median(time_between_events, na.rm=T),
+    max = max(time_between_events, na.rm=T)
+  )
+```
+
+
+```{r}
+cats_uk_sf = cats_uk |> 
+  # Calculate time between events for each cat
+  arrange(tag_id, timestamp) |> 
+  group_by(tag_id) |> 
+  mutate(time_between_events = timestamp - lag(timestamp), .after = "timestamp") |> 
+  # Convert to simple features
+  st_as_sf(coords = c("location_long", "location_lat"), remove = F) %>% 
+   sf::st_set_crs(4326)
+
+tm_shape(cats_uk_sf)+
+  tm_dots()
+```
+
+Can we calculate distance between events with the coordinates?
+
+```{r}
+cats_uk_distance = cats_uk_sf |> 
+  mutate(distance_between_events = st_distance(geometry, lag(geometry), by_element = T), .before = "location_long") |> 
+  ungroup()
+
+cats_uk_speed = cats_uk_distance |> 
+  mutate(speed_between_events_ms = as.numeric(distance_between_events)/as.numeric(time_between_events),
+         speed_between_events_kmph = 3600*(speed_between_events_ms/1000), .before = "time_between_events")
+```
+
+What does the distribution of distance between events look like?
+
+```{r}
+cats_uk_distance |> 
+  ggplot(aes(x = as.numeric(distance_between_events)))+
+  geom_histogram(colour = my_col_pal[1])+
+  scale_x_continuous(expand = expansion(mult = .025), breaks = scales::breaks_pretty(n=10))+
+  scale_y_continuous(expand = expansion(mult = c(0, .05)))+
+  theme_moke(plots_pane=T)
+```
+Look at events with distance over 10km
+
+```{r}
+cats_uk_distance |> 
+  filter(as.numeric(distance_between_events) > 10000)
+```
+
+
+So we have some outliers.
+
+Can we easily identify these with speed measures?
+
+```{r}
+cats_uk_speed |> 
+  filter(speed_between_events_ms <13.3) |> 
+  ggplot(aes(x = speed_between_events_ms))+
+  geom_histogram(colour = my_col_pal[1])+
+  scale_x_continuous(expand = expansion(mult = .025), breaks = scales::breaks_pretty(n=10))+
+  scale_y_continuous(expand = expansion(mult = c(0, .05)))+
+  theme_moke(plots_pane=T)
+```
+
+Okay what about plotting distance against time?
+
+```{r}
+cats_uk_speed |> 
+  mutate(across(c(distance_between_events), as.numeric)) |> 
+  ggplot(aes(x = time_between_events, y = distance_between_events))+
+  geom_point()+
+  scale_x_time()+
+  theme_moke(plots_pane = T)
+```
+So let's use a few rules of thumb to split these up:
+
+```{r}
+cats_uk_speed |> 
+  mutate(across(c(distance_between_events), as.numeric)) |> 
+  mutate(across())
+  filter(speed_between_events_ms < 13.3, 
+         distance_between_events < 60000, 
+         time_between_events < 60*60*24*2) |> 
+  ggplot(aes(x = time_between_events, y = distance_between_events))+
+  geom_point()+
+  scale_x_time()+
+  theme_moke(plots_pane = T)
+```
+
+
+What are these massive gaps between events?
+
+```{r}
+cats_uk_speed |> 
+  mutate(across(c(time_between_events, distance_between_events), as.numeric)) |> 
+  filter(time_between_events > 60*60*10, distance_between_events > 5000)
+```
+
+
+
+```{r}
+filter(cats_uk_distance, as.numeric(distance_between_events) < 1000) |> 
+  ggplot(aes(x = as.numeric(distance_between_events)))+
+  geom_histogram(colour = my_col_pal[1])+
+  scale_x_continuous(expand = expansion(mult = .025), breaks = scales::breaks_pretty(n=10))+
+  scale_y_continuous(expand = expansion(mult = c(0, .05)))+
+  theme_moke(plots_pane=T)
+```
+Are there other cases where visible is false?
+
+```{r}
+cats_uk |> count(visible)
+```
+
+
+```{r}
+world_sf = st_as_sf(as(world, "Spatial"))
+
+map_uk = world_sf |> 
+  filter(name_long == "United Kingdom") |> 
+  tm_shape()+
+  tm_polygons()
+```
+
+
+```{r}
+map_uk+
+  tm_shape(cats_uk_sf)+
+  tm_dots()
+```
+
+```{r}
+plot(cats_uk_sf$geometry, axes = T)
+```
+
+
+It looks like the cats live in Southwest England. So I'll need to get a base map for this region.
+
+Let's try the `{osmdata}` package. I am following [this tutorial](https://rspatialdata.github.io/osm.html) from RSpatialData.
+
+```{r}
+# install.packages("osmdata")
+library(osmdata)
+```
+The nearest big city is Plymouth so let's try that.
+
+```{r}
+(cornwall_bb = getbb("Cornwall", featuretype = "street"))
+```
+Does this bounding box hold all our points?
+
+```{r}
+cats_uk |> 
+  summarise(across(c(location_long, location_lat), .fns = list(min = min, max = max)))
+```
+
+Mostly, let's see how it works for now. 
+With Open Street Map, we need to specify the kind of features we're looking for. 
+I'll start with what I assume is walking routes.
+
+```{r}
+cornwall_walkways = cornwall_bb %>%
+  opq() %>%
+  add_osm_feature(key = "route", value = "foot") %>%
+  osmdata_sf()
+```
+
+Okay the tutorial then goes on to use `{ggmap}` which requires an API key and I reckon there's a simpler way to do this.
+And then I found the following code from Stack Overflow
+
+```{r}
+# Soure: https://stackoverflow.com/questions/50583247/plotting-uk-regions-in-rstudio
+# download uk data level 2 from GADM  
+uk <- getData('GADM', country='GBR', level = 2)  
+
+uk_sf = uk |> 
+  st_as_sf()
+```
+
+Is it deprecated and going to be phased out? Sure, but for now it works!
+Now let's put those cats on a map.
+We can see on GADM's (the data source) [website](https://gadm.org/maps/GBR/england_2.html) the names and codes of the UK regions we want to include.
+
+```{r}
+cornwall_sf = uk_sf |> 
+  filter(NAME_2 %in% c("Cornwall"))
+
+tm_shape(cornwall_sf)+
+  tm_fill()+
+  tm_shape(cats_uk_sf)+
+  tm_dots()
+```
+
+Can I create lines for each cat from the coordinates?
+
+```{r}
+(cats_lines = cats_uk_sf |> 
+  arrange(tag_id, timestamp) |> 
+  group_by(tag_id, date = date(timestamp)) |> 
+  summarise(do_union = F, .groups = "drop") |> 
+  st_cast("LINESTRING") |> 
+  st_make_valid())
+```
+
+```{r}
+tm_shape(cornwall_sf)+
+  tm_fill()+
+  tm_shape(cats_lines)+
+  tm_lines()
+```
+
