@@ -27,8 +27,8 @@ cats_uk_reference <- tuesdata$cats_uk_reference
 
 # Or read in the data manually
 
-cats_uk <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2023/2023-01-31/cats_uk.csv')
-cats_uk_reference <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2023/2023-01-31/cats_uk_reference.csv')
+# cats_uk <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2023/2023-01-31/cats_uk.csv')
+# cats_uk_reference <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2023/2023-01-31/cats_uk_reference.csv')
 ```
 
 ## Look at it
@@ -155,6 +155,11 @@ cats_uk_reference |>
   labs(x = "Ground Speed (m/s)")+
   theme_moke(plots_pane = T)
 ```
+Something is off here, unless these cats are breaking speed limits around town.
+
+From the codebook on the TidyTuesday GitHub page:
+
+>Units are reportedly m/s, which indicates that there is likely a problem with this data (either the units were reported erroneously or their is an issue with the sensor data).
 
 How many events are measured per day for cats?
 
@@ -175,19 +180,23 @@ What was the distribution of individual cats' average events per day?
 
 ```{r}
 cats_events_per_day |> 
-  group_by(tag_id) |> 
-  summarise(
-    days = n_distinct(date),
-    min = min(daily_events),
-    mean = mean(daily_events),
-    median = median(daily_events),
-    max = max(daily_events)
-  ) |> 
-  ggplot(aes(x = mean))+
-  geom_histogram(colour = my_col_pal[1])+
-  scale_x_continuous(expand = expansion(mult = .025), breaks = scales::breaks_pretty(n=10))+
-  scale_y_continuous(expand = expansion(mult = c(0, .05)))+
-  theme_moke(plots_pane=T)
+  # group_by(tag_id) |> 
+  # summarise(
+  #   days = n_distinct(date),
+  #   p25 = quan
+  #   min = min(daily_events),
+  #   mean = mean(daily_events),
+  #   median = median(daily_events),
+  #   max = max(daily_events)
+  # ) |> 
+  # arrange(median) |> 
+  right_join(sample_n(cats_uk_reference, 10), by = "tag_id") |> 
+  mutate(tag_id = fct_inorder(tag_id)) |> 
+  ggplot(aes(x = daily_events, y = animal_id, group = animal_id))+
+  geom_boxplot()+
+  geom_point()+
+  scale_x_continuous(labels = scales::comma)+
+  theme_moke(plots_pane = T)
 ```
 
 
@@ -279,10 +288,13 @@ cats_uk_speed |>
 ```
 So let's use a few rules of thumb to split these up:
 
+- Speed less than 13.3m/s
+- Distance traveled less than 60km
+- Time between events less than 2 days
+
 ```{r}
 cats_uk_speed |> 
   mutate(across(c(distance_between_events), as.numeric)) |> 
-  mutate(across())
   filter(speed_between_events_ms < 13.3, 
          distance_between_events < 60000, 
          time_between_events < 60*60*24*2) |> 
@@ -301,7 +313,7 @@ cats_uk_speed |>
   filter(time_between_events > 60*60*10, distance_between_events > 5000)
 ```
 
-
+What is the distribution of distances after removing cases greater than 1km?
 
 ```{r}
 filter(cats_uk_distance, as.numeric(distance_between_events) < 1000) |> 
@@ -311,28 +323,7 @@ filter(cats_uk_distance, as.numeric(distance_between_events) < 1000) |>
   scale_y_continuous(expand = expansion(mult = c(0, .05)))+
   theme_moke(plots_pane=T)
 ```
-Are there other cases where visible is false?
 
-```{r}
-cats_uk |> count(visible)
-```
-
-
-```{r}
-world_sf = st_as_sf(as(world, "Spatial"))
-
-map_uk = world_sf |> 
-  filter(name_long == "United Kingdom") |> 
-  tm_shape()+
-  tm_polygons()
-```
-
-
-```{r}
-map_uk+
-  tm_shape(cats_uk_sf)+
-  tm_dots()
-```
 
 ```{r}
 plot(cats_uk_sf$geometry, axes = T)
@@ -399,7 +390,11 @@ tm_shape(cornwall_sf)+
 Can I create lines for each cat from the coordinates?
 
 ```{r}
-(cats_lines = cats_uk_sf |> 
+(cats_lines = cats_uk_speed |> 
+  mutate(across(c(distance_between_events), as.numeric)) |> 
+  filter(speed_between_events_ms < 13.3, 
+         distance_between_events < 60000, 
+         time_between_events < 60*60*24*2) |> 
   arrange(tag_id, timestamp) |> 
   group_by(tag_id, date = date(timestamp)) |> 
   summarise(do_union = F, .groups = "drop") |> 
